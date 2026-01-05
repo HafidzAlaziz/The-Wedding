@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, QrCode, Search, CheckCircle, XCircle, Clock } from "lucide-react";
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 
 export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState<"list" | "scan">("list");
@@ -12,6 +12,8 @@ export default function AdminDashboard() {
     const [isLoading, setIsLoading] = useState(true);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
+    const [isCameraStarted, setIsCameraStarted] = useState(false);
+    const [cameraError, setCameraError] = useState<string | null>(null);
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -19,55 +21,56 @@ export default function AdminDashboard() {
     }, []);
 
     useEffect(() => {
-        let scanner: any = null;
+        let scanner: Html5Qrcode | null = null;
 
-        const initScanner = async () => {
+        const startCamera = async () => {
             if (activeTab === "scan") {
-                console.log("Initializing scanner...");
-                // Add a small delay to ensure DOM is fully ready and animations are done
-                await new Promise(resolve => setTimeout(resolve, 500));
+                console.log("Starting camera...");
+                setCameraError(null);
 
-                const element = document.getElementById("reader");
-                if (element) {
-                    try {
-                        scanner = new Html5QrcodeScanner(
-                            "reader",
-                            {
-                                fps: 15,
-                                qrbox: (viewfinderWidth, viewfinderHeight) => {
-                                    return {
-                                        width: viewfinderWidth,
-                                        height: viewfinderHeight
-                                    };
-                                },
-                                aspectRatio: 1.0,
-                                showZoomSliderIfSupported: true,
-                                defaultZoomValueIfSupported: 2
-                            },
-                            /* verbose= */ false
-                        );
-                        console.log("Scanner instance created, rendering...");
-                        scanner.render(onScanSuccess, onScanFailure);
-                    } catch (err) {
-                        console.error("Error creating/rendering scanner:", err);
-                    }
-                } else {
-                    console.error("Scanner element #reader not found");
+                try {
+                    // Cek apakah elemen reader ada
+                    const element = document.getElementById("reader");
+                    if (!element) return;
+
+                    scanner = new Html5Qrcode("reader");
+                    const config = {
+                        fps: 15,
+                        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+                            return { width: viewfinderWidth, height: viewfinderHeight };
+                        },
+                        aspectRatio: 1.0
+                    };
+
+                    await scanner.start(
+                        { facingMode: "environment" },
+                        config,
+                        (decodedText) => {
+                            onScanSuccess(decodedText);
+                        },
+                        undefined // Ignore failure callback to reduce noise
+                    );
+
+                    setIsCameraStarted(true);
+                    console.log("Camera started successfully");
+                } catch (err: any) {
+                    console.error("Failed to start camera:", err);
+                    setCameraError("Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan.");
+                    setIsCameraStarted(false);
                 }
             }
         };
 
-        initScanner();
+        startCamera();
 
         return () => {
-            if (scanner) {
-                console.log("Clearing scanner...");
-                scanner.clear().then(() => {
-                    console.log("Scanner cleared successfully");
-                }).catch((err: any) => {
-                    console.error("Failed to clear scanner:", err);
+            if (scanner && scanner.isScanning) {
+                console.log("Stopping camera...");
+                scanner.stop().catch(err => {
+                    console.error("Failed to stop camera:", err);
                 });
             }
+            setIsCameraStarted(false);
         };
     }, [activeTab]);
 
@@ -302,8 +305,34 @@ export default function AdminDashboard() {
 
                                 {/* Right Side: Scanner */}
                                 <div className="relative w-full max-w-md mx-auto px-4 lg:px-0">
-                                    <div className="bg-slate-900 rounded-[3rem] shadow-2xl border-8 border-white overflow-hidden aspect-square relative z-10">
-                                        <div id="reader" className="w-full h-full"></div>
+                                    <div className="bg-slate-900 rounded-[3rem] shadow-2xl border-8 border-white overflow-hidden aspect-square relative z-10 flex items-center justify-center">
+                                        <div id="reader" className="w-full h-full absolute inset-0"></div>
+
+                                        {!isCameraStarted && (
+                                            <div className="relative z-20 text-center p-8">
+                                                <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-slate-700">
+                                                    <QrCode className="w-10 h-10 text-slate-400" />
+                                                </div>
+                                                {cameraError ? (
+                                                    <div>
+                                                        <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+                                                            {cameraError}
+                                                        </p>
+                                                        <button
+                                                            onClick={() => setActiveTab("list")}
+                                                            className="px-6 py-2 bg-slate-800 text-white rounded-full text-xs font-bold uppercase tracking-widest border border-slate-700 hover:bg-slate-700 transition-colors"
+                                                        >
+                                                            Kembali
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center">
+                                                        <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
+                                                        <p className="text-white font-medium">Memulai Kamera...</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Decorative Elements */}
@@ -370,44 +399,17 @@ export default function AdminDashboard() {
                 }
                 #reader {
                     border: none !important;
-                    display: flex !important;
-                    flex-direction: column !important;
                     height: 100% !important;
                     width: 100% !important;
-                    position: relative !important;
+                    position: absolute !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    overflow: hidden !important;
                 }
                 #reader video {
                     object-fit: cover !important;
                     width: 100% !important;
                     height: 100% !important;
-                    border-radius: 0 !important;
-                    position: absolute !important;
-                    top: 0 !important;
-                    left: 0 !important;
-                }
-                #reader__scan_region {
-                    background: transparent !important;
-                    height: 100% !important;
-                    width: 100% !important;
-                    position: absolute !important;
-                    top: 0 !important;
-                    left: 0 !important;
-                    z-index: 10 !important;
-                }
-                #reader__scan_region svg {
-                    display: none !important;
-                }
-                #reader__dashboard {
-                    display: none !important;
-                }
-                /* Hide the shading */
-                div#reader__scan_region > div {
-                    display: none !important;
-                }
-                /* Remove internal paddings */
-                .html5-qrcode-element {
-                    padding: 0 !important;
-                    margin: 0 !important;
                 }
             `}</style>
         </div>
