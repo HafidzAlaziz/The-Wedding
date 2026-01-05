@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, QrCode, Search, CheckCircle, XCircle, Clock } from "lucide-react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState<"list" | "scan">("list");
@@ -60,7 +60,10 @@ export default function AdminDashboard() {
             const element = document.getElementById("reader");
             if (!element) return;
 
-            scannerRef.current = new Html5Qrcode("reader");
+            scannerRef.current = new Html5Qrcode("reader", {
+                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+                verbose: false
+            });
             const config = {
                 fps: 60,
                 qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
@@ -423,35 +426,35 @@ export default function AdminDashboard() {
                                                 initial={{ opacity: 0, scale: 0.8 }}
                                                 animate={{ opacity: 1, scale: 1 }}
                                                 exit={{ opacity: 0, scale: 0.8 }}
-                                                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+                                                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
                                             >
                                                 <motion.div
                                                     initial={{ y: 50, scale: 0.9 }}
                                                     animate={{ y: 0, scale: 1 }}
-                                                    className="bg-white rounded-[3rem] shadow-2xl p-8 md:p-16 w-[95vw] md:w-[90vw] max-w-6xl text-center border-8 border-wedding-gold/20 relative overflow-hidden"
+                                                    className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-2xl text-center border-4 border-wedding-gold/20 relative overflow-hidden"
                                                 >
                                                     {/* Decorative background elements */}
                                                     <div className="absolute top-0 left-0 w-64 h-64 bg-wedding-gold/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
                                                     <div className="absolute bottom-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
 
-                                                    <div className="relative z-10 flex flex-col items-center justify-center min-h-[40vh]">
-                                                        <div className="w-32 h-32 md:w-40 md:h-40 bg-green-100 rounded-full flex items-center justify-center mb-8 animate-bounce-slow shadow-lg">
-                                                            <CheckCircle className="text-green-600 w-16 h-16 md:w-20 md:h-20" />
+                                                    <div className="relative z-10 flex flex-col items-center justify-center">
+                                                        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 animate-bounce-slow shadow-md">
+                                                            <CheckCircle className="text-green-600 w-12 h-12" />
                                                         </div>
-                                                        <h2 className="text-4xl md:text-7xl font-black text-slate-900 mb-6 tracking-tight">
+                                                        <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">
                                                             Selamat Datang!
                                                         </h2>
-                                                        <div className="py-8 my-8 border-y-4 border-slate-100 w-full">
-                                                            <p className="text-3xl md:text-6xl font-black text-wedding-dark mb-4 leading-tight break-words">
+                                                        <div className="py-6 my-6 border-y-2 border-slate-100 w-full">
+                                                            <p className="text-3xl font-bold text-wedding-dark mb-2 leading-tight break-words">
                                                                 {scanResult.guestName}
                                                             </p>
-                                                            <p className="text-xl md:text-4xl text-slate-500 font-medium">
+                                                            <p className="text-lg text-slate-500 font-medium">
                                                                 {scanResult.message}
                                                             </p>
                                                         </div>
-                                                        <div className="bg-slate-50 rounded-2xl p-6 inline-block shadow-sm">
-                                                            <p className="text-lg md:text-2xl text-slate-600 font-bold flex items-center gap-3">
-                                                                <CheckCircle className="text-green-500 w-6 h-6 md:w-8 md:h-8" />
+                                                        <div className="bg-slate-50 rounded-xl p-4 inline-block shadow-sm">
+                                                            <p className="text-base text-slate-600 font-bold flex items-center gap-2">
+                                                                <CheckCircle className="text-green-500 w-5 h-5" />
                                                                 Silakan masuk ke ruangan acara
                                                             </p>
                                                         </div>
