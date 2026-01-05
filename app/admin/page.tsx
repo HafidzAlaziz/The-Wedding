@@ -62,9 +62,13 @@ export default function AdminDashboard() {
 
             scannerRef.current = new Html5Qrcode("reader");
             const config = {
-                fps: 30,
+                fps: 60,
                 qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-                    return { width: viewfinderWidth, height: viewfinderHeight };
+                    // Larger scan area for better sensitivity
+                    return {
+                        width: Math.floor(viewfinderWidth * 0.8),
+                        height: Math.floor(viewfinderHeight * 0.8)
+                    };
                 },
                 aspectRatio: 1.0
             };
@@ -419,29 +423,38 @@ export default function AdminDashboard() {
                                                 initial={{ opacity: 0, scale: 0.8 }}
                                                 animate={{ opacity: 1, scale: 1 }}
                                                 exit={{ opacity: 0, scale: 0.8 }}
-                                                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+                                                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
                                             >
                                                 <motion.div
-                                                    initial={{ y: 50 }}
-                                                    animate={{ y: 0 }}
-                                                    className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 max-w-md w-full text-center"
+                                                    initial={{ y: 50, scale: 0.9 }}
+                                                    animate={{ y: 0, scale: 1 }}
+                                                    className="bg-white rounded-[3rem] shadow-2xl p-8 md:p-16 w-[95vw] md:w-[90vw] max-w-6xl text-center border-8 border-wedding-gold/20 relative overflow-hidden"
                                                 >
-                                                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                                                        <CheckCircle className="text-green-600" size={48} />
-                                                    </div>
-                                                    <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-3">
-                                                        Selamat Datang!
-                                                    </h2>
-                                                    <p className="text-2xl font-semibold text-wedding-dark mb-2">
-                                                        {scanResult.guestName}
-                                                    </p>
-                                                    <p className="text-slate-600 leading-relaxed">
-                                                        {scanResult.message}
-                                                    </p>
-                                                    <div className="mt-8 pt-6 border-t border-slate-200">
-                                                        <p className="text-sm text-slate-500">
-                                                            Silakan menuju ke ruangan acara
-                                                        </p>
+                                                    {/* Decorative background elements */}
+                                                    <div className="absolute top-0 left-0 w-64 h-64 bg-wedding-gold/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+                                                    <div className="absolute bottom-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
+
+                                                    <div className="relative z-10 flex flex-col items-center justify-center min-h-[40vh]">
+                                                        <div className="w-32 h-32 md:w-40 md:h-40 bg-green-100 rounded-full flex items-center justify-center mb-8 animate-bounce-slow shadow-lg">
+                                                            <CheckCircle className="text-green-600 w-16 h-16 md:w-20 md:h-20" />
+                                                        </div>
+                                                        <h2 className="text-4xl md:text-7xl font-black text-slate-900 mb-6 tracking-tight">
+                                                            Selamat Datang!
+                                                        </h2>
+                                                        <div className="py-8 my-8 border-y-4 border-slate-100 w-full">
+                                                            <p className="text-3xl md:text-6xl font-black text-wedding-dark mb-4 leading-tight break-words">
+                                                                {scanResult.guestName}
+                                                            </p>
+                                                            <p className="text-xl md:text-4xl text-slate-500 font-medium">
+                                                                {scanResult.message}
+                                                            </p>
+                                                        </div>
+                                                        <div className="bg-slate-50 rounded-2xl p-6 inline-block shadow-sm">
+                                                            <p className="text-lg md:text-2xl text-slate-600 font-bold flex items-center gap-3">
+                                                                <CheckCircle className="text-green-500 w-6 h-6 md:w-8 md:h-8" />
+                                                                Silakan masuk ke ruangan acara
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 </motion.div>
                                             </motion.div>
