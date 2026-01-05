@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, QrCode, Search, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
@@ -14,61 +14,90 @@ export default function AdminDashboard() {
     const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
     const [isCameraStarted, setIsCameraStarted] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
+    const scannerRef = useRef<Html5Qrcode | null>(null);
+    Elisa: Elisa(LANGUAGE_UNSPECIFIED)
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
 
-    useEffect(() => {
-        let scanner: Html5Qrcode | null = null;
+    const startCamera = async (isRetry = false) => {
+        if (activeTab === "scan") {
+            console.log("Attempting to start camera...");
+            setCameraError(null);
+            setIsCameraStarted(false);
 
-        const startCamera = async () => {
-            if (activeTab === "scan") {
-                console.log("Starting camera...");
-                setCameraError(null);
-
+            // Cleanup any existing scanner
+            if (scannerRef.current) {
                 try {
-                    // Cek apakah elemen reader ada
-                    const element = document.getElementById("reader");
-                    if (!element) return;
-
-                    scanner = new Html5Qrcode("reader");
-                    const config = {
-                        fps: 15,
-                        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-                            return { width: viewfinderWidth, height: viewfinderHeight };
-                        },
-                        aspectRatio: 1.0
-                    };
-
-                    await scanner.start(
-                        { facingMode: "environment" },
-                        config,
-                        (decodedText) => {
-                            onScanSuccess(decodedText);
-                        },
-                        undefined // Ignore failure callback to reduce noise
-                    );
-
-                    setIsCameraStarted(true);
-                    console.log("Camera started successfully");
-                } catch (err: any) {
-                    console.error("Failed to start camera:", err);
-                    setCameraError("Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan.");
-                    setIsCameraStarted(false);
+                    if (scannerRef.current.isScanning) {
+                        await scannerRef.current.stop();
+                    }
+                } catch (e) {
+                    console.error("Error stopping existing scanner:", e);
                 }
+                scannerRef.current = null;
             }
-        };
 
+            // Add a timeout to prevent infinite loading
+            const timeout = setTimeout(() => {
+                if (!isCameraStarted) {
+                    console.error("Camera startup timed out after 10 seconds");
+                    setCameraError("Waktu aktivasi kamera habis. Silakan coba lagi atau pastikan izin kamera diberikan.");
+                }
+            }, 10000);
+
+            try {
+                const element = document.getElementById("reader");
+                if (!element) return;
+
+                scannerRef.current = new Html5Qrcode("reader");
+                const config = {
+                    fps: 15,
+                    qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+                        return { width: viewfinderWidth, height: viewfinderHeight };
+                    },
+                    aspectRatio: 1.0
+                };
+
+                // Try to start with environment facing mode
+                await scannerRef.current.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText) => onScanSuccess(decodedText),
+                    undefined
+                );
+
+                clearTimeout(timeout);
+                setIsCameraStarted(true);
+                console.log("Camera started successfully");
+            } catch (err: any) {
+                clearTimeout(timeout);
+                console.error("Failed to start camera:", err);
+
+                let errorMsg = "Gagal mengakses kamera.";
+                if (err.name === "NotAllowedError") errorMsg = "Izin kamera ditolak. Silakan aktifkan izin kamera di pengaturan browser.";
+                else if (err.name === "NotFoundError") errorMsg = "Kamera tidak ditemukan di perangkat ini.";
+                else if (err.message) errorMsg = `Error: ${err.message}`;
+
+                setCameraError(errorMsg);
+                setIsCameraStarted(false);
+            }
+        }
+    };
+
+    useEffect(() => {
         startCamera();
 
         return () => {
-            if (scanner && scanner.isScanning) {
-                console.log("Stopping camera...");
-                scanner.stop().catch(err => {
-                    console.error("Failed to stop camera:", err);
-                });
+            if (scannerRef.current) {
+                if (scannerRef.current.isScanning) {
+                    scannerRef.current.stop().catch(err => {
+                        console.error("Failed to stop camera on cleanup:", err);
+                    });
+                }
+                scannerRef.current = null;
             }
             setIsCameraStarted(false);
         };
@@ -314,16 +343,24 @@ export default function AdminDashboard() {
                                                     <QrCode className="w-10 h-10 text-slate-400" />
                                                 </div>
                                                 {cameraError ? (
-                                                    <div>
-                                                        <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+                                                    <div className="flex flex-col items-center">
+                                                        <p className="text-slate-400 text-sm mb-6 leading-relaxed max-w-[240px] mx-auto">
                                                             {cameraError}
                                                         </p>
-                                                        <button
-                                                            onClick={() => setActiveTab("list")}
-                                                            className="px-6 py-2 bg-slate-800 text-white rounded-full text-xs font-bold uppercase tracking-widest border border-slate-700 hover:bg-slate-700 transition-colors"
-                                                        >
-                                                            Kembali
-                                                        </button>
+                                                        <div className="flex gap-3">
+                                                            <button
+                                                                onClick={() => setActiveTab("list")}
+                                                                className="px-6 py-2 bg-slate-800 text-slate-400 rounded-full text-xs font-bold uppercase tracking-widest border border-slate-700 hover:bg-slate-700 transition-colors"
+                                                            >
+                                                                Tutup
+                                                            </button>
+                                                            <button
+                                                                onClick={() => startCamera(true)}
+                                                                className="px-6 py-2 bg-slate-100 text-slate-900 rounded-full text-xs font-bold uppercase tracking-widest border border-white hover:bg-white transition-colors"
+                                                            >
+                                                                Coba Lagi
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col items-center">
