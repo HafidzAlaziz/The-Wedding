@@ -14,8 +14,10 @@ export default function AdminDashboard() {
     const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
     const [isCameraStarted, setIsCameraStarted] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
+    const [showActivationPrompt, setShowActivationPrompt] = useState(true);
+    const [cameraNotification, setCameraNotification] = useState<{ type: 'requesting' | 'success' | 'error'; message: string } | null>(null);
     const scannerRef = useRef<Html5Qrcode | null>(null);
-    Elisa: Elisa(LANGUAGE_UNSPECIFIED)
+
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -23,72 +25,89 @@ export default function AdminDashboard() {
     }, []);
 
     const startCamera = async (isRetry = false) => {
-        if (activeTab === "scan") {
-            console.log("Attempting to start camera...");
-            setCameraError(null);
+        console.log("Attempting to start camera...");
+        setCameraError(null);
+        setIsCameraStarted(false);
+        setShowActivationPrompt(false);
+
+        // Show permission request notification
+        setCameraNotification({ type: 'requesting', message: 'Meminta izin akses kamera...' });
+
+        // Cleanup any existing scanner
+        if (scannerRef.current) {
+            try {
+                if (scannerRef.current.isScanning) {
+                    await scannerRef.current.stop();
+                }
+            } catch (e) {
+                console.error("Error stopping existing scanner:", e);
+            }
+            scannerRef.current = null;
+        }
+
+        // Add a timeout to prevent infinite loading
+        const timeout = setTimeout(() => {
+            if (!isCameraStarted) {
+                console.error("Camera startup timed out after 10 seconds");
+                const errorMsg = "Waktu aktivasi kamera habis. Silakan coba lagi atau pastikan izin kamera diberikan.";
+                setCameraError(errorMsg);
+                setCameraNotification({ type: 'error', message: errorMsg });
+                setTimeout(() => setCameraNotification(null), 5000);
+            }
+        }, 10000);
+
+        try {
+            const element = document.getElementById("reader");
+            if (!element) return;
+
+            scannerRef.current = new Html5Qrcode("reader");
+            const config = {
+                fps: 15,
+                qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+                    return { width: viewfinderWidth, height: viewfinderHeight };
+                },
+                aspectRatio: 1.0
+            };
+
+            // Try to start with environment facing mode
+            await scannerRef.current.start(
+                { facingMode: "environment" },
+                config,
+                (decodedText) => onScanSuccess(decodedText),
+                undefined
+            );
+
+            clearTimeout(timeout);
+            setIsCameraStarted(true);
+            console.log("Camera started successfully");
+
+            // Show success notification
+            setCameraNotification({ type: 'success', message: 'Kamera berhasil diaktifkan!' });
+            setTimeout(() => setCameraNotification(null), 3000);
+        } catch (err: any) {
+            clearTimeout(timeout);
+            console.error("Failed to start camera:", err);
+
+            let errorMsg = "Gagal mengakses kamera.";
+            if (err.name === "NotAllowedError") errorMsg = "Izin kamera ditolak. Silakan aktifkan izin kamera di pengaturan browser.";
+            else if (err.name === "NotFoundError") errorMsg = "Kamera tidak ditemukan di perangkat ini.";
+            else if (err.message) errorMsg = `Error: ${err.message}`;
+
+            setCameraError(errorMsg);
             setIsCameraStarted(false);
 
-            // Cleanup any existing scanner
-            if (scannerRef.current) {
-                try {
-                    if (scannerRef.current.isScanning) {
-                        await scannerRef.current.stop();
-                    }
-                } catch (e) {
-                    console.error("Error stopping existing scanner:", e);
-                }
-                scannerRef.current = null;
-            }
-
-            // Add a timeout to prevent infinite loading
-            const timeout = setTimeout(() => {
-                if (!isCameraStarted) {
-                    console.error("Camera startup timed out after 10 seconds");
-                    setCameraError("Waktu aktivasi kamera habis. Silakan coba lagi atau pastikan izin kamera diberikan.");
-                }
-            }, 10000);
-
-            try {
-                const element = document.getElementById("reader");
-                if (!element) return;
-
-                scannerRef.current = new Html5Qrcode("reader");
-                const config = {
-                    fps: 15,
-                    qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-                        return { width: viewfinderWidth, height: viewfinderHeight };
-                    },
-                    aspectRatio: 1.0
-                };
-
-                // Try to start with environment facing mode
-                await scannerRef.current.start(
-                    { facingMode: "environment" },
-                    config,
-                    (decodedText) => onScanSuccess(decodedText),
-                    undefined
-                );
-
-                clearTimeout(timeout);
-                setIsCameraStarted(true);
-                console.log("Camera started successfully");
-            } catch (err: any) {
-                clearTimeout(timeout);
-                console.error("Failed to start camera:", err);
-
-                let errorMsg = "Gagal mengakses kamera.";
-                if (err.name === "NotAllowedError") errorMsg = "Izin kamera ditolak. Silakan aktifkan izin kamera di pengaturan browser.";
-                else if (err.name === "NotFoundError") errorMsg = "Kamera tidak ditemukan di perangkat ini.";
-                else if (err.message) errorMsg = `Error: ${err.message}`;
-
-                setCameraError(errorMsg);
-                setIsCameraStarted(false);
-            }
+            // Show error notification
+            setCameraNotification({ type: 'error', message: errorMsg });
+            setTimeout(() => setCameraNotification(null), 5000);
         }
     };
 
     useEffect(() => {
-        startCamera();
+        // Reset activation prompt when switching to scan tab
+        if (activeTab === "scan") {
+            setShowActivationPrompt(true);
+            setCameraNotification(null);
+        }
 
         return () => {
             if (scannerRef.current) {
@@ -396,6 +415,66 @@ export default function AdminDashboard() {
                                         <div>
                                             <h4 className="font-bold text-lg">{scanResult.success ? "Scan Berhasil" : "Scan Gagal"}</h4>
                                             <p className="text-white/90 leading-tight">{scanResult.message}</p>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Camera Activation Prompt */}
+                            <AnimatePresence>
+                                {showActivationPrompt && activeTab === "scan" && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        className="fixed top-8 left-4 right-4 md:left-auto md:right-8 md:w-96 p-6 rounded-2xl shadow-2xl border z-50 bg-blue-600 border-blue-500 text-white"
+                                    >
+                                        <div className="flex items-start gap-4">
+                                            <div className="bg-white/20 p-3 rounded-xl flex-shrink-0">
+                                                <QrCode size={32} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="font-bold text-lg mb-1">Aktifkan Kamera</h4>
+                                                <p className="text-white/90 text-sm leading-tight mb-4">Klik tombol di bawah untuk mengaktifkan kamera dan mulai scan QR Code.</p>
+                                                <button
+                                                    onClick={() => startCamera()}
+                                                    className="w-full bg-white text-blue-600 font-bold py-2.5 px-4 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+                                                >
+                                                    <QrCode size={18} />
+                                                    Aktifkan Kamera
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Camera Permission Notification */}
+                            <AnimatePresence>
+                                {cameraNotification && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        className={`fixed top-8 left-4 right-4 md:left-auto md:right-8 md:w-96 p-6 rounded-2xl shadow-2xl flex items-center gap-4 border z-50 ${cameraNotification.type === 'requesting' ? "bg-blue-600 border-blue-500 text-white" :
+                                                cameraNotification.type === 'success' ? "bg-green-600 border-green-500 text-white" :
+                                                    "bg-red-600 border-red-500 text-white"
+                                            }`}
+                                    >
+                                        <div className="bg-white/20 p-3 rounded-xl">
+                                            {cameraNotification.type === 'requesting' && (
+                                                <div className="w-8 h-8 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                            )}
+                                            {cameraNotification.type === 'success' && <CheckCircle size={32} />}
+                                            {cameraNotification.type === 'error' && <XCircle size={32} />}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-lg">
+                                                {cameraNotification.type === 'requesting' && "Meminta Izin Kamera"}
+                                                {cameraNotification.type === 'success' && "Kamera Aktif"}
+                                                {cameraNotification.type === 'error' && "Gagal Mengaktifkan Kamera"}
+                                            </h4>
+                                            <p className="text-white/90 leading-tight">{cameraNotification.message}</p>
                                         </div>
                                     </motion.div>
                                 )}
