@@ -122,6 +122,12 @@ export default function AdminDashboard() {
         };
     }, [activeTab]);
 
+    // Auto-fetch guests on component mount
+    useEffect(() => {
+        fetchGuests();
+    }, []);
+
+
     const fetchGuests = async () => {
         setIsLoading(true);
         try {
