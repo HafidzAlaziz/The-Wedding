@@ -34,7 +34,8 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
             success: true,
-            message: `Berhasil! Selamat datang ${guest.name}.`
+            message: `Berhasil! Selamat datang ${guest.name}.`,
+            guestName: guest.name
         });
     } catch (error) {
         console.error('Check-in API Error:', error);
