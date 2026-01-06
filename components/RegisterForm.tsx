@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, CheckCircle2, Download, AlertCircle } from "lucide-react";
+import { Send, CheckCircle2, Download, AlertCircle, XCircle } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
 const RegisterForm = () => {
@@ -18,6 +18,7 @@ const RegisterForm = () => {
     // Store array of guest names. Index 0 is the main guest.
     const [guestNames, setGuestNames] = useState<string[]>([""]);
     const [validationError, setValidationError] = useState("");
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     // Update guestNames array size when guest count changes
     useEffect(() => {
@@ -215,7 +216,8 @@ const RegisterForm = () => {
             }
         } catch (error: any) {
             console.error("Error submitting RSVP:", error);
-            alert(error.message || "Terjadi kesalahan saat mengirim konfirmasi. Silakan coba lagi.");
+            setToast({ type: 'error', message: error.message || "Terjadi kesalahan saat mengirim konfirmasi." });
+            setTimeout(() => setToast(null), 5000);
         } finally {
             setIsLoading(false);
         }
@@ -370,6 +372,30 @@ const RegisterForm = () => {
                     </AnimatePresence>
                 </div>
             </div>
+
+            {/* Custom Toast Notification */}
+            <AnimatePresence>
+                {toast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 50, x: '-50%' }}
+                        animate={{ opacity: 1, y: 0, x: '-50%' }}
+                        exit={{ opacity: 0, y: 50, x: '-50%' }}
+                        className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 min-w-[320px] ${toast.type === 'success' ? 'bg-white border-l-4 border-green-500' : 'bg-white border-l-4 border-red-500'
+                            }`}
+                    >
+                        <div className={`p-2 rounded-full ${toast.type === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                            {toast.type === 'success' ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
+                        </div>
+                        <div>
+                            <p className="font-bold text-slate-800 text-sm">{toast.type === 'success' ? 'Berhasil' : 'Error'}</p>
+                            <p className="text-slate-500 text-xs">{toast.message}</p>
+                        </div>
+                        <button onClick={() => setToast(null)} className="ml-auto text-slate-400 hover:text-slate-600">
+                            <XCircle size={16} />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </section>
     );
 };

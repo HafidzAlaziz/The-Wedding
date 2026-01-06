@@ -20,6 +20,8 @@ export default function AdminDashboard() {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
     const scannerRef = useRef<Html5Qrcode | null>(null);
+    const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
 
     useEffect(() => {
@@ -161,21 +163,25 @@ export default function AdminDashboard() {
     };
 
     const handleDeleteGuest = async (id: string, name: string) => {
-        if (!confirm(`Apakah Anda yakin ingin menghapus data tamu "${name}"?`)) return;
-
+        setConfirmDelete(null);
+        setIsLoading(true);
         try {
             const response = await fetch(`/api/admin/guests/${id}`, {
                 method: 'DELETE',
             });
             if (response.ok) {
+                setToast({ type: 'success', message: `Data tamu "${name}" berhasil dihapus.` });
                 fetchGuests();
             } else {
                 const data = await response.json();
-                alert(data.error || "Gagal menghapus tamu");
+                setToast({ type: 'error', message: data.error || "Gagal menghapus tamu" });
             }
         } catch (error) {
             console.error("Error deleting guest:", error);
-            alert("Terjadi kesalahan jaringan.");
+            setToast({ type: 'error', message: "Terjadi kesalahan jaringan." });
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setToast(null), 3000);
         }
     };
 
@@ -428,7 +434,7 @@ export default function AdminDashboard() {
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
                                                         <button
-                                                            onClick={() => handleDeleteGuest(guest.id, guest.name)}
+                                                            onClick={() => setConfirmDelete({ id: guest.id, name: guest.name })}
                                                             className="text-red-400 hover:text-red-600 transition-colors p-2 hover:bg-red-50 rounded-lg"
                                                             title="Hapus Tamu"
                                                         >
@@ -753,6 +759,66 @@ export default function AdminDashboard() {
                 </AnimatePresence>
             </div>
 
+            {/* Custom Toast Notification */}
+            <AnimatePresence>
+                {toast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 50, x: '-50%' }}
+                        animate={{ opacity: 1, y: 0, x: '-50%' }}
+                        exit={{ opacity: 0, y: 50, x: '-50%' }}
+                        className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 min-w-[320px] ${toast.type === 'success' ? 'bg-white border-l-4 border-green-500' : 'bg-white border-l-4 border-red-500'
+                            }`}
+                    >
+                        <div className={`p-2 rounded-full ${toast.type === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                            {toast.type === 'success' ? <CheckCircle size={20} /> : <XCircle size={20} />}
+                        </div>
+                        <div>
+                            <p className="font-bold text-slate-800 text-sm">{toast.type === 'success' ? 'Berhasil' : 'Error'}</p>
+                            <p className="text-slate-500 text-xs">{toast.message}</p>
+                        </div>
+                        <button onClick={() => setToast(null)} className="ml-auto text-slate-400 hover:text-slate-600">
+                            <XCircle size={16} />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Custom Delete Confirmation Modal */}
+            <AnimatePresence>
+                {confirmDelete && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl text-center"
+                        >
+                            <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Trash2 size={40} />
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-800 mb-2">Hapus Tamu?</h3>
+                            <p className="text-slate-500 text-sm mb-8">
+                                Apakah Anda yakin ingin menghapus data tamu <br />
+                                <span className="font-bold text-slate-800">"{confirmDelete.name}"</span>? Action ini tidak bisa dibatalkan.
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={() => setConfirmDelete(null)}
+                                    className="py-3 px-6 bg-slate-100 text-slate-600 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-200 transition-colors"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteGuest(confirmDelete.id, confirmDelete.name)}
+                                    className="py-3 px-6 bg-red-600 text-white rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200"
+                                >
+                                    Ya, Hapus
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
             <style jsx global>{`
                 #reader button {
                     background-color: #0F172A !important;
