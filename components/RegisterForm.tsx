@@ -1,20 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, CheckCircle2, Download } from "lucide-react";
+import { Send, CheckCircle2, Download, AlertCircle } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 
 const RegisterForm = () => {
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [guestId, setGuestId] = useState("");
+    const [uniqueCode, setUniqueCode] = useState("");
     const [formData, setFormData] = useState({
-        name: "",
         phone: "",
         guests: "1",
         attendance: "Hadir",
     });
+    // Store array of guest names. Index 0 is the main guest.
+    const [guestNames, setGuestNames] = useState<string[]>([""]);
+    const [validationError, setValidationError] = useState("");
+
+    // Update guestNames array size when guest count changes
+    useEffect(() => {
+        const count = parseInt(formData.guests);
+        setGuestNames(prev => {
+            const newNames = [...prev];
+            if (newNames.length < count) {
+                // Add empty strings for new slots
+                for (let i = newNames.length; i < count; i++) {
+                    newNames.push("");
+                }
+            } else if (newNames.length > count) {
+                // Remove extra slots
+                return newNames.slice(0, count);
+            }
+            return newNames;
+        });
+    }, [formData.guests]);
+
+    const handleNameChange = (index: number, value: string) => {
+        const newNames = [...guestNames];
+        newNames[index] = value;
+        setGuestNames(newNames);
+        // Clear error when user types
+        if (validationError) setValidationError("");
+    };
 
     const downloadQRCode = () => {
         const qrCanvas = document.getElementById("qr-code-canvas") as HTMLCanvasElement;
@@ -26,7 +55,7 @@ const RegisterForm = () => {
 
         // Dimensi E-Ticket (Portrait)
         const width = 500;
-        const height = 800;
+        const height = 900;
         canvas.width = width;
         canvas.height = height;
 
@@ -52,19 +81,64 @@ const RegisterForm = () => {
         ctx.font = "italic 18px serif";
         ctx.fillText("The Wedding of Romeo & Juliet", width / 2, 125);
 
-        // 4. Guest Info Section
+        // 4. Guest Info Section (Dynamic Layout)
+        let currentY = 180;
+
         ctx.fillStyle = "#C5A059";
         ctx.font = "bold 14px sans-serif";
-        ctx.fillText("GUEST NAME", width / 2, 200);
+        ctx.fillText("GUEST LIST", width / 2, currentY);
+        currentY += 40;
 
         ctx.fillStyle = "#1A1A1A";
-        ctx.font = "bold 32px sans-serif";
-        ctx.fillText(formData.name.toUpperCase(), width / 2, 250);
+        ctx.font = "bold 24px sans-serif";
+
+        // Draw all guest names
+        // Draw all guest names
+        const validNames = guestNames.filter(name => name.trim() !== "");
+
+        if (validNames.length === 1) {
+            ctx.fillText(validNames[0].toUpperCase(), width / 2, currentY);
+            currentY += 35;
+        } else {
+            // 2 Column Layout
+            const col1X = width / 2 - 110;
+            const col2X = width / 2 + 110;
+
+            validNames.forEach((name, index) => {
+                const isLeft = index % 2 === 0;
+                const x = isLeft ? col1X : col2X;
+                // Only increment Y if it's a left item (start of row) 
+                // BUT we actually increment after a row completes or for the left item we stay on same line
+                // Better logic: Calculate row index
+                const row = Math.floor(index / 2);
+                const y = currentY + (row * 35);
+
+                ctx.fillText(name.toUpperCase(), x, y);
+            });
+
+            // Advance Y by number of rows
+            currentY += Math.ceil(validNames.length / 2) * 35;
+        }
+
+        // Draw Total Guests
+        currentY += 5;
+        ctx.fillStyle = "#555555";
+        ctx.font = "16px sans-serif";
+        ctx.fillText(`Total: ${formData.guests} Tamu`, width / 2, currentY);
+        currentY += 35;
+
+        // Show unique code
+        ctx.fillStyle = "#C5A059";
+        ctx.font = "bold 24px monospace";
+        ctx.fillText(`CODE: ${uniqueCode}`, width / 2, currentY);
+        currentY += 40; // Spacing before QR
 
         // 5. QR Code Area (Dengan bingkai)
+        // Ensure standard spacing for QR code even with few guests to maintain balance
+        const minQrY = 320;
+        const qrY = Math.max(currentY, minQrY);
         const qrSize = 300;
         const qrX = (width - qrSize) / 2;
-        const qrY = 320;
 
         ctx.fillStyle = "#FFFFFF";
         ctx.shadowColor = "rgba(0,0,0,0.1)";
@@ -74,19 +148,21 @@ const RegisterForm = () => {
 
         ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
 
-        // 6. Event Details
+        // 6. Footer (Dynamic based on QR position)
+        const footerStartY = qrY + qrSize + 60;
+
         ctx.fillStyle = "#1A1A1A";
         ctx.font = "bold 14px sans-serif";
-        ctx.fillText("SAVE THE DATE", width / 2, 680);
+        ctx.fillText("SAVE THE DATE", width / 2, footerStartY);
 
         ctx.font = "18px sans-serif";
-        ctx.fillText("Senin, 04 Januari 2027", width / 2, 710);
-        ctx.fillText("Grand Ballroom Jakarta", width / 2, 740);
+        ctx.fillText("Senin, 04 Januari 2027", width / 2, footerStartY + 30);
+        ctx.fillText("Grand Ballroom Jakarta", width / 2, footerStartY + 60);
 
-        // 7. Footer
+        // 7. Footer Note
         ctx.fillStyle = "#C5A059";
         ctx.font = "11px sans-serif";
-        ctx.fillText("Harap tunjukkan Kode QR ini pada saat memasuki ruangan", width / 2, 775);
+        ctx.fillText("Harap tunjukkan Kode QR ini pada saat memasuki ruangan", width / 2, height - 35);
 
         // Download logic
         canvas.toBlob((blob) => {
@@ -94,7 +170,7 @@ const RegisterForm = () => {
             const url = URL.createObjectURL(blob);
             const downloadLink = document.createElement("a");
             downloadLink.href = url;
-            const safeName = formData.name.replace(/[^a-z0-9]/gi, '_');
+            const safeName = (guestNames[0] || "guest").replace(/[^a-z0-9]/gi, '_');
             downloadLink.download = `E-Ticket-${safeName}.png`;
             downloadLink.click();
             setTimeout(() => URL.revokeObjectURL(url), 100);
@@ -103,6 +179,16 @@ const RegisterForm = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setValidationError("");
+
+        // STRICT VALIDATION: Check if ANY guest name is empty
+        const emptyIndex = guestNames.findIndex(name => name.trim() === "");
+        if (emptyIndex !== -1) {
+            setValidationError(`Silakan isi nama Tamu #${emptyIndex + 1}. Semua nama wajib diisi!`);
+            // Scroll to form top or let user see notification
+            return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -110,7 +196,8 @@ const RegisterForm = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name: formData.name,
+                    name: guestNames[0], // Main guest name for backward compatibility
+                    guest_names: guestNames, // Array of all names
                     phone: formData.phone,
                     total_guests: parseInt(formData.guests),
                     attendance: formData.attendance,
@@ -123,6 +210,7 @@ const RegisterForm = () => {
 
             if (data && data.id) {
                 setGuestId(data.id);
+                setUniqueCode(data.unique_code || "---");
                 setIsSubmitted(true);
             }
         } catch (error: any) {
@@ -153,58 +241,65 @@ const RegisterForm = () => {
                                     <p className="text-wedding-dark/60 text-sm">Mohon isi formulir di bawah ini untuk konfirmasi kehadiran Anda.</p>
                                 </div>
 
+                                {validationError && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl mb-6 flex items-start gap-3"
+                                    >
+                                        <AlertCircle className="shrink-0 mt-0.5" size={18} />
+                                        <p className="text-sm font-medium">{validationError}</p>
+                                    </motion.div>
+                                )}
+
                                 <form onSubmit={handleSubmit} className="space-y-6">
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase tracking-widest text-wedding-gold mb-2">Nama Lengkap</label>
-                                        <input
-                                            type="text"
-                                            required
+
+                                    <div className="mb-6">
+                                        <label className="block text-xs font-bold uppercase tracking-widest text-wedding-gold mb-2">Jumlah Tamu</label>
+                                        <select
                                             className="w-full bg-wedding-cream/30 border-b-2 border-wedding-gold/20 py-3 px-4 focus:border-wedding-gold outline-none transition-colors duration-300 text-wedding-dark"
-                                            placeholder="Contoh: John Doe"
-                                            value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        />
+                                            value={formData.guests}
+                                            onChange={(e) => setFormData({ ...formData, guests: e.target.value })}
+                                        >
+                                            <option value="1">1 Orang</option>
+                                            <option value="2">2 Orang</option>
+                                            <option value="3">3 Orang</option>
+                                            <option value="4">4 Orang</option>
+                                        </select>
                                     </div>
 
-                                    <div>
-                                        <label className="block text-xs font-bold uppercase tracking-widest text-wedding-gold mb-2">No. WhatsApp</label>
-                                        <input
-                                            type="tel"
-                                            required
-                                            className="w-full bg-wedding-cream/30 border-b-2 border-wedding-gold/20 py-3 px-4 focus:border-wedding-gold outline-none transition-colors duration-300 text-wedding-dark"
-                                            placeholder="Contoh: 081234567890"
-                                            value={formData.phone}
-                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                        />
+                                    {/* DYNAMIC GUEST INPUTS */}
+                                    <div className="space-y-4">
+                                        {guestNames.map((name, index) => (
+                                            <motion.div
+                                                key={index}
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ duration: 0.2 }}
+                                            >
+                                                <label className="block text-xs font-bold uppercase tracking-widest text-wedding-gold mb-2">
+                                                    Nama Tamu {index + 1} {index === 0 && "(Utama)"}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className={`w-full bg-wedding-cream/30 border-b-2 py-3 px-4 outline-none transition-colors duration-300 text-wedding-dark ${validationError && name.trim() === ""
+                                                        ? "border-red-400 bg-red-50"
+                                                        : "border-wedding-gold/20 focus:border-wedding-gold"
+                                                        }`}
+                                                    placeholder={index === 0 ? "Contoh: Romeo" : `Nama Tamu ke-${index + 1}`}
+                                                    value={guestNames[index]}
+                                                    onChange={(e) => handleNameChange(index, e.target.value)}
+                                                />
+                                                {validationError && name.trim() === "" && (
+                                                    <p className="text-[10px] text-red-500 font-bold mt-1 ml-1 uppercase tracking-wider animate-pulse">
+                                                        * Nama tamu wajib diisi
+                                                    </p>
+                                                )}
+                                            </motion.div>
+                                        ))}
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase tracking-widest text-wedding-gold mb-2">Jumlah Tamu</label>
-                                            <select
-                                                className="w-full bg-wedding-cream/30 border-b-2 border-wedding-gold/20 py-3 px-4 focus:border-wedding-gold outline-none transition-colors duration-300 text-wedding-dark"
-                                                value={formData.guests}
-                                                onChange={(e) => setFormData({ ...formData, guests: e.target.value })}
-                                            >
-                                                <option value="1">1 Orang</option>
-                                                <option value="2">2 Orang</option>
-                                                <option value="3">3 Orang</option>
-                                                <option value="4">4 Orang</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase tracking-widest text-wedding-gold mb-2">Konfirmasi</label>
-                                            <select
-                                                className="w-full bg-wedding-cream/30 border-b-2 border-wedding-gold/20 py-3 px-4 focus:border-wedding-gold outline-none transition-colors duration-300 text-wedding-dark"
-                                                value={formData.attendance}
-                                                onChange={(e) => setFormData({ ...formData, attendance: e.target.value })}
-                                            >
-                                                <option value="Hadir">Hadir</option>
-                                                <option value="Tidak Hadir">Tidak Hadir</option>
-                                                <option value="Masih Ragu">Masih Ragu</option>
-                                            </select>
-                                        </div>
-                                    </div>
+
 
                                     <motion.button
                                         whileHover={{ scale: 1.02 }}
@@ -241,7 +336,13 @@ const RegisterForm = () => {
                                         fgColor="#C5A059"
                                         includeMargin={false}
                                     />
-                                    <p className="mt-4 text-[10px] font-bold text-wedding-gold uppercase tracking-widest">Entry ID: {guestId.slice(0, 8)}</p>
+                                    <div className="mt-4 flex flex-col items-center gap-1">
+                                        <p className="text-[10px] font-bold text-wedding-gold uppercase tracking-widest">Entry ID: {guestId.slice(0, 8)}</p>
+                                        <div className="bg-wedding-cream px-4 py-2 rounded-lg border border-wedding-gold/20">
+                                            <p className="text-xs text-wedding-dark/60 font-medium mb-1">Backup Code</p>
+                                            <p className="text-2xl font-mono font-bold text-wedding-dark tracking-widest">{uniqueCode}</p>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="mb-8">
@@ -254,7 +355,12 @@ const RegisterForm = () => {
                                 </div>
 
                                 <button
-                                    onClick={() => setIsSubmitted(false)}
+                                    onClick={() => {
+                                        setIsSubmitted(false);
+                                        setValidationError("");
+                                        setGuestNames([""]);
+                                        setFormData({ ...formData, guests: "1" });
+                                    }}
                                     className="text-wedding-gold font-bold uppercase tracking-widest text-xs border-b border-wedding-gold"
                                 >
                                     Isi Kembali

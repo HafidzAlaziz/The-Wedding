@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, QrCode, Search, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Users, QrCode, Search, CheckCircle, XCircle, Clock, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 export default function AdminDashboard() {
@@ -11,11 +11,14 @@ export default function AdminDashboard() {
     const [searchQuery, setSearchQuery] = useState("");
     const [isLoading, setIsLoading] = useState(true);
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [scanResult, setScanResult] = useState<{ success: boolean; message: string; guestName?: string } | null>(null);
+    const [scanResult, setScanResult] = useState<{ success: boolean; message: string; guestName?: string; guestNames?: string[]; totalGuests?: number } | null>(null);
     const [isCameraStarted, setIsCameraStarted] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [showActivationPrompt, setShowActivationPrompt] = useState(true);
     const [cameraNotification, setCameraNotification] = useState<{ type: 'requesting' | 'success' | 'error'; message: string } | null>(null);
+    const [manualCode, setManualCode] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
     const scannerRef = useRef<Html5Qrcode | null>(null);
 
 
@@ -96,9 +99,16 @@ export default function AdminDashboard() {
             console.error("Failed to start camera:", err);
 
             let errorMsg = "Gagal mengakses kamera.";
-            if (err.name === "NotAllowedError") errorMsg = "Izin kamera ditolak. Silakan aktifkan izin kamera di pengaturan browser.";
-            else if (err.name === "NotFoundError") errorMsg = "Kamera tidak ditemukan di perangkat ini.";
-            else if (err.message) errorMsg = `Error: ${err.message}`;
+            const errorMessage = typeof err === 'string' ? err : err.message || "";
+            const errorName = err.name || "";
+
+            if (errorName === "NotAllowedError" || errorMessage.includes("NotAllowedError") || errorMessage.includes("Permission denied")) {
+                errorMsg = "Izin kamera ditolak. Silakan klik ikon gembok di browser dan izinkan akses kamera.";
+            } else if (errorName === "NotFoundError" || errorMessage.includes("NotFoundError")) {
+                errorMsg = "Kamera tidak ditemukan di perangkat ini.";
+            } else if (errorMessage) {
+                errorMsg = `Error: ${errorMessage}`;
+            }
 
             setCameraError(errorMsg);
             setIsCameraStarted(false);
@@ -150,6 +160,25 @@ export default function AdminDashboard() {
         }
     };
 
+    const handleDeleteGuest = async (id: string, name: string) => {
+        if (!confirm(`Apakah Anda yakin ingin menghapus data tamu "${name}"?`)) return;
+
+        try {
+            const response = await fetch(`/api/admin/guests/${id}`, {
+                method: 'DELETE',
+            });
+            if (response.ok) {
+                fetchGuests();
+            } else {
+                const data = await response.json();
+                alert(data.error || "Gagal menghapus tamu");
+            }
+        } catch (error) {
+            console.error("Error deleting guest:", error);
+            alert("Terjadi kesalahan jaringan.");
+        }
+    };
+
     const handleCheckIn = async (id: string) => {
         try {
             const response = await fetch('/api/admin/check-in', {
@@ -161,18 +190,67 @@ export default function AdminDashboard() {
 
             if (response.ok) {
                 // Success: Show welcome popup with guest name
-                setScanResult({ success: true, message: data.message, guestName: data.guestName || "Tamu" });
+                setScanResult({
+                    success: true,
+                    message: data.message,
+                    guestName: data.guestName || "Tamu",
+                    guestNames: data.guestNames || [],
+                    totalGuests: data.totalGuests || 1
+                });
                 fetchGuests();
-                // Reset scan result after 5 seconds to clear the screen
-                setTimeout(() => setScanResult(null), 5000);
+                // Reset scan result after 3 seconds from 5 seconds
+                setTimeout(() => setScanResult(null), 3000);
             } else {
                 // Error: Show notification
                 setScanResult({ success: false, message: data.error || "Gagal check-in" });
-                setTimeout(() => setScanResult(null), 5000);
+                setTimeout(() => setScanResult(null), 3000);
             }
         } catch (error) {
             setScanResult({ success: false, message: "Terjadi kesalahan jaringan." });
-            setTimeout(() => setScanResult(null), 5000);
+            setTimeout(() => setScanResult(null), 3000);
+        }
+    };
+
+    const [isProcessingManual, setIsProcessingManual] = useState(false);
+
+    const handleManualCheckIn = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!manualCode.trim() || isProcessingManual) return;
+
+        // Reset states
+        setScanResult(null);
+        setIsProcessingManual(true);
+
+        try {
+            const response = await fetch('/api/admin/check-in', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ unique_code: manualCode.trim() }),
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                // Success
+                setScanResult({
+                    success: true,
+                    message: data.message,
+                    guestName: data.guestName || "Tamu",
+                    guestNames: data.guestNames || [],
+                    totalGuests: data.totalGuests || 1
+                });
+                setManualCode(""); // Clear input on success
+                fetchGuests();
+                setTimeout(() => setScanResult(null), 3000);
+            } else {
+                // Error
+                setScanResult({ success: false, message: data.error || "Gagal check-in" });
+                setTimeout(() => setScanResult(null), 3000);
+            }
+        } catch (error) {
+            setScanResult({ success: false, message: "Terjadi kesalahan jaringan." });
+            setTimeout(() => setScanResult(null), 3000);
+        } finally {
+            setIsProcessingManual(false);
         }
     };
 
@@ -186,13 +264,25 @@ export default function AdminDashboard() {
 
     const filteredGuests = guests.filter(g =>
         (g.name?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
-        (g.phone || "").includes(searchQuery)
+        (g.unique_code?.toLowerCase() || "").includes(searchQuery.toLowerCase())
     );
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredGuests.length / itemsPerPage);
+    const paginatedGuests = filteredGuests.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
+    // Reset to page 1 when searching
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
 
     const stats = {
         total: guests.length,
         present: guests.filter(g => g.is_present).length,
-        notPresent: guests.filter(g => !g.is_present && g.attendance === "Hadir").length,
+        notPresent: guests.filter(g => !g.is_present).length,
     };
 
     return (
@@ -277,34 +367,47 @@ export default function AdminDashboard() {
                                     <table className="w-full text-left">
                                         <thead>
                                             <tr className="bg-slate-50/50 text-slate-500 text-xs uppercase tracking-wider">
+                                                <th className="px-6 py-4 font-bold text-center">No</th>
+                                                <th className="px-6 py-4 font-bold">Kode</th>
                                                 <th className="px-6 py-4 font-bold">Nama Tamu</th>
-                                                <th className="px-6 py-4 font-bold">WhatsApp</th>
                                                 <th className="px-6 py-4 font-bold">Jumlah</th>
-                                                <th className="px-6 py-4 font-bold">Status RSVP</th>
                                                 <th className="px-6 py-4 font-bold">Presensi</th>
+                                                <th className="px-6 py-4 font-bold text-center">Aksi</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {isLoading ? (
                                                 <tr>
-                                                    <td colSpan={5} className="px-6 py-10 text-center text-slate-400">Memuat data...</td>
+                                                    <td colSpan={6} className="px-6 py-10 text-center text-slate-400">Memuat data...</td>
                                                 </tr>
                                             ) : filteredGuests.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={5} className="px-6 py-10 text-center text-slate-400">Tamu tidak ditemukan.</td>
+                                                    <td colSpan={6} className="px-6 py-10 text-center text-slate-400">Tamu tidak ditemukan.</td>
                                                 </tr>
-                                            ) : filteredGuests.map((guest) => (
+                                            ) : paginatedGuests.map((guest, index) => (
                                                 <tr key={guest.id} className="hover:bg-slate-50/50 transition-colors">
-                                                    <td className="px-6 py-4 font-semibold text-slate-800">{guest.name}</td>
-                                                    <td className="px-6 py-4 text-slate-600">{guest.phone}</td>
-                                                    <td className="px-6 py-4 text-slate-600">{guest.total_guests} Orang</td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${guest.attendance === "Hadir" || guest.attendance === "hadir" ? "bg-green-100 text-green-700" :
-                                                            guest.attendance === "Tidak Hadir" || guest.attendance === "tidak" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-700"
-                                                            }`}>
-                                                            {guest.attendance}
-                                                        </span>
+                                                    <td className="px-6 py-4 text-center text-slate-400 text-xs">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                                                    <td className="px-6 py-4 font-mono font-bold text-wedding-gold text-xs">{guest.unique_code || "-"}</td>
+                                                    <td className="px-6 py-4 relative group">
+                                                        <div className="font-semibold text-slate-800">{guest.name}</div>
+                                                        {guest.guest_names && Array.isArray(guest.guest_names) && guest.guest_names.length > 1 && (
+                                                            <div className="text-xs text-slate-500 mt-1">
+                                                                + {guest.guest_names.slice(1).join(", ")}
+                                                            </div>
+                                                        )}
+                                                        {/* Tooltip for all names */}
+                                                        {guest.guest_names && Array.isArray(guest.guest_names) && (
+                                                            <div className="absolute left-6 top-full mt-2 hidden group-hover:block z-20 bg-white p-3 rounded-lg shadow-xl border border-slate-100 min-w-[200px]">
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Daftar Tamu:</p>
+                                                                <ul className="text-xs space-y-1">
+                                                                    {guest.guest_names.map((name: string, idx: number) => (
+                                                                        <li key={idx} className="text-slate-700">• {name || "(Tanpa Nama)"}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )}
                                                     </td>
+                                                    <td className="px-6 py-4 text-slate-600">{guest.total_guests} Orang</td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-2">
                                                             {guest.is_present ? (
@@ -323,11 +426,58 @@ export default function AdminDashboard() {
                                                             <p className="text-[10px] text-slate-400 mt-1">{new Date(guest.checkInTime).toLocaleTimeString()}</p>
                                                         )}
                                                     </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <button
+                                                            onClick={() => handleDeleteGuest(guest.id, guest.name)}
+                                                            className="text-red-400 hover:text-red-600 transition-colors p-2 hover:bg-red-50 rounded-lg"
+                                                            title="Hapus Tamu"
+                                                        >
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {/* Pagination Controls */}
+                                {totalPages > 1 && (
+                                    <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+                                        <p className="text-sm text-slate-500">
+                                            Menampilkan <span className="font-bold text-slate-700">{(currentPage - 1) * itemsPerPage + 1}</span> - <span className="font-bold text-slate-700">{Math.min(currentPage * itemsPerPage, filteredGuests.length)}</span> dari <span className="font-bold text-slate-700">{filteredGuests.length}</span> tamu
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                disabled={currentPage === 1}
+                                                className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-all"
+                                            >
+                                                <ChevronLeft size={18} />
+                                            </button>
+
+                                            <div className="flex items-center gap-1">
+                                                {[...Array(totalPages)].map((_, i) => (
+                                                    <button
+                                                        key={i}
+                                                        onClick={() => setCurrentPage(i + 1)}
+                                                        className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${currentPage === i + 1 ? "bg-wedding-dark text-white shadow-md" : "text-slate-600 hover:bg-slate-100"}`}
+                                                    >
+                                                        {i + 1}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            <button
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                disabled={currentPage === totalPages}
+                                                className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-all"
+                                            >
+                                                <ChevronRight size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     ) : (
@@ -363,6 +513,40 @@ export default function AdminDashboard() {
                                         <div className="text-slate-500 space-y-1">
                                             <p className="font-bold text-slate-700">Scan QR Code</p>
                                             <p className="text-sm leading-relaxed">Arahkan kamera ke Kode QR Tamu untuk melakukan verifikasi kehadiran secara otomatis.</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Manual Check-in Form */}
+                                    <div className="w-full max-w-sm pt-8">
+                                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                                            <h3 className="font-bold text-slate-800 mb-4 text-center">Input Manual Kode Unik</h3>
+                                            <form onSubmit={handleManualCheckIn} className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:border-wedding-gold font-mono uppercase text-center tracking-widest font-bold"
+                                                    placeholder="XXXXX"
+                                                    value={manualCode}
+                                                    onChange={(e) => setManualCode(e.target.value)}
+                                                    maxLength={8}
+                                                />
+                                                <button
+                                                    type="submit"
+                                                    disabled={!manualCode.trim() || isProcessingManual}
+                                                    className="bg-wedding-dark text-white px-6 py-2 rounded-lg font-bold uppercase text-xs tracking-wider hover:bg-wedding-gold transition-colors disabled:opacity-50 whitespace-nowrap min-w-[100px] flex items-center justify-center"
+                                                >
+                                                    {isProcessingManual ? (
+                                                        <div
+                                                            className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                                                            style={{ animationDuration: '0.5s' }}
+                                                        ></div>
+                                                    ) : (
+                                                        "Check-In"
+                                                    )}
+                                                </button>
+                                            </form>
+                                            <p className="text-center text-xs text-slate-400 mt-3">
+                                                Atau scan QR Code di sebelah kanan.
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -416,6 +600,8 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
 
+
+
                             {/* Scan Feedback Overlay */}
                             <AnimatePresence>
                                 {scanResult && (
@@ -445,12 +631,28 @@ export default function AdminDashboard() {
                                                             Selamat Datang!
                                                         </h2>
                                                         <div className="py-6 my-6 border-y-2 border-slate-100 w-full">
-                                                            <p className="text-3xl font-bold text-wedding-dark mb-2 leading-tight break-words">
-                                                                {scanResult.guestName}
-                                                            </p>
-                                                            <p className="text-lg text-slate-500 font-medium">
-                                                                {scanResult.message}
-                                                            </p>
+                                                            {scanResult.guestNames && scanResult.guestNames.length > 0 ? (
+                                                                <div className="flex flex-col items-center">
+                                                                    <div className={`${scanResult.guestNames.length > 1 ? 'grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2' : ''} w-full max-w-lg`}>
+                                                                        {scanResult.guestNames.map((name, idx) => (
+                                                                            <p key={idx} className="text-2xl font-bold text-wedding-dark leading-tight break-words py-1">
+                                                                                {name}
+                                                                            </p>
+                                                                        ))}
+                                                                    </div>
+                                                                    {scanResult.totalGuests && scanResult.totalGuests > 1 && (
+                                                                        <div className="mt-6 inline-block bg-slate-100 px-4 py-1 rounded-full">
+                                                                            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">
+                                                                                Total: {scanResult.totalGuests} Tamu
+                                                                            </p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-3xl font-bold text-wedding-dark mb-2 leading-tight break-words">
+                                                                    {scanResult.guestName}
+                                                                </p>
+                                                            )}
                                                         </div>
                                                         <div className="bg-slate-50 rounded-xl p-4 inline-block shadow-sm">
                                                             <p className="text-base text-slate-600 font-bold flex items-center gap-2">

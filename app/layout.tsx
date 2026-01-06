@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "The Wedding of Romeo & Juliet",
     description: "Digital Wedding Invitation",
-    images: ["/og-image.jpg"],
+    images: ["/hero-islamic.png"],
   },
 };
 

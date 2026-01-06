@@ -15,7 +15,9 @@ export default function Home() {
     <main className="min-h-screen bg-wedding-cream relative">
       <LoadingScreen />
       <Navbar />
-      <Hero />
+      <div id="home">
+        <Hero />
+      </div>
       <div id="about">
         <About />
       </div>

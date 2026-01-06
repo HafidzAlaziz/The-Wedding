@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 
 const navLinks = [
-    { name: "Home", href: "#" },
+    { name: "Home", href: "#home" },
     { name: "Mempelai", href: "#about" },
     { name: "Acara", href: "#event" },
     { name: "Galeri", href: "#gallery" },
@@ -24,31 +24,50 @@ const Navbar = () => {
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
-    const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+        // 1. Prevent Default Anchor Jump
         e.preventDefault();
-        if (href === "#") {
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        } else {
-            const element = document.querySelector(href);
-            if (element) {
-                element.scrollIntoView({ behavior: "smooth" });
-            }
-        }
+
+        // 2. Close Menu Immediately
         setIsOpen(false);
+
+        // 3. Manual Scroll Logic
+        setTimeout(() => {
+            const targetId = href.replace("#", "");
+            const element = document.getElementById(targetId);
+
+            if (element) {
+                const navHeight = 80;
+                const elementPosition = element.getBoundingClientRect().top + window.scrollY;
+                const offsetPosition = elementPosition - navHeight;
+
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: "smooth"
+                });
+
+                // Update URL without jumping
+                window.history.pushState(null, "", href);
+            } else if (href === "#home") {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                window.history.pushState(null, "", "#home");
+            }
+        }, 100); // Small delay to allow menu close animation to start/finish
     };
 
     return (
         <nav
-            className={`fixed top-0 left-0 w-full z-50 transition-all duration-700 ease-in-out ${isScrolled
-                ? "bg-white/80 backdrop-blur-xl shadow-sm py-4 border-b border-wedding-gold/10"
+            className={`fixed top-0 left-0 w-full z-[9999] transition-all duration-300 ease-in-out ${isScrolled || isOpen
+                ? "bg-white shadow-md py-4"
                 : "bg-transparent py-6"
                 }`}
         >
-            <div className="container mx-auto px-6 flex justify-between items-center">
+            <div className="container mx-auto px-6 flex justify-between items-center relative z-[10000]">
                 {/* Logo */}
                 <motion.a
-                    href="#"
-                    className={`font-wedding text-2xl md:text-3xl ${isScrolled ? "text-wedding-gold" : "text-white"
+                    href="#home"
+                    onClick={(e) => handleLinkClick(e, "#home")}
+                    className={`font-wedding text-2xl md:text-3xl ${isScrolled || isOpen ? "text-wedding-dark" : "text-white"
                         }`}
                     whileHover={{ scale: 1.05 }}
                 >
@@ -61,7 +80,7 @@ const Navbar = () => {
                         <a
                             key={link.name}
                             href={link.href}
-                            onClick={(e) => scrollToSection(e, link.href)}
+                            onClick={(e) => handleLinkClick(e, link.href)}
                             className={`text-xs uppercase tracking-widest font-semibold transition-colors duration-300 hover:text-wedding-gold ${isScrolled ? "text-wedding-dark/80" : "text-white/80"
                                 }`}
                         >
@@ -72,7 +91,7 @@ const Navbar = () => {
 
                 {/* Mobile Toggle */}
                 <button
-                    className={`md:hidden p-2 rounded-lg transition-colors ${isScrolled ? "text-wedding-dark" : "text-white"
+                    className={`md:hidden p-2 rounded-lg transition-colors relative z-[10001] ${isScrolled || isOpen ? "text-wedding-dark" : "text-white"
                         }`}
                     onClick={() => setIsOpen(!isOpen)}
                 >
@@ -80,25 +99,28 @@ const Navbar = () => {
                 </button>
             </div>
 
-            {/* Mobile Menu */}
+            {/* Mobile Menu - Fullscreen Overlay */}
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="md:hidden bg-white border-t border-wedding-gold/10 overflow-hidden"
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="fixed inset-0 bg-white z-[9998] pt-24 px-6 md:hidden flex flex-col h-screen"
                     >
-                        <div className="flex flex-col p-6 gap-6">
-                            {navLinks.map((link) => (
-                                <a
+                        <div className="flex flex-col gap-6 items-center justify-center h-full pb-24">
+                            {navLinks.map((link, index) => (
+                                <motion.a
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: index * 0.1 }}
                                     key={link.name}
                                     href={link.href}
-                                    onClick={(e) => scrollToSection(e, link.href)}
-                                    className="text-xs uppercase tracking-widest font-bold text-wedding-dark/70 hover:text-wedding-gold transition-colors"
+                                    onClick={(e) => handleLinkClick(e, link.href)}
+                                    className="text-xl uppercase tracking-[0.2em] font-bold text-wedding-dark hover:text-wedding-gold transition-colors py-4 w-full text-center border-b border-wedding-gold/10"
                                 >
                                     {link.name}
-                                </a>
+                                </motion.a>
                             ))}
                         </div>
                     </motion.div>

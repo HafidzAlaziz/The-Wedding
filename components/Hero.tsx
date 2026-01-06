@@ -59,7 +59,7 @@ const Hero = () => {
                     whileTap={{ scale: 0.95 }}
                     transition={{ duration: 0.8, delay: 1.3 }}
                     onClick={() => {
-                        document.getElementById('countdown')?.scrollIntoView({ behavior: 'smooth' });
+                        document.getElementById('rsvp')?.scrollIntoView({ behavior: 'smooth' });
                     }}
                     className="bg-wedding-gold hover:bg-opacity-90 text-white px-8 py-3 rounded-full transition-all duration-300 shadow-xl tracking-widest text-sm uppercase font-semibold"
                 >

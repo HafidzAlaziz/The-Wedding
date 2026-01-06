@@ -11,6 +11,7 @@ const events = [
         location: "Masjid Raya Al-Mashun",
         address: "Jl. Mahkamah No.74, Mesjid, Kec. Medan Kota, Kota Medan",
         mapsUrl: "https://maps.app.goo.gl/3Xz8p8zQJ1z1z1z1",
+        mapEmbedUrl: "https://maps.google.com/maps?q=Masjid+Raya+Al-Mashun+Medan&t=&z=15&ie=UTF8&iwloc=&output=embed"
     },
     {
         title: "Resepsi Pernikahan",
@@ -19,6 +20,7 @@ const events = [
         location: "Grand City Hall Medan",
         address: "Jl. Balai Kota No.1, Kesawan, Kec. Medan Bar., Kota Medan",
         mapsUrl: "https://maps.app.goo.gl/3Xz8p8zQJ1z1z1z1",
+        mapEmbedUrl: "https://maps.google.com/maps?q=Grand+City+Hall+Medan&t=&z=15&ie=UTF8&iwloc=&output=embed"
     },
 ];
 
@@ -55,7 +57,7 @@ const Event = () => {
                             whileInView={{ opacity: 1, scale: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ delay: index * 0.2 }}
-                            className="bg-wedding-cream/50 p-10 rounded-3xl border border-wedding-gold/10 shadow-lg text-center relative overflow-hidden group"
+                            className="bg-wedding-cream/50 p-6 md:p-10 rounded-3xl border border-wedding-gold/10 shadow-lg text-center relative overflow-hidden group"
                         >
                             {/* Background Decoration */}
                             <div className="absolute top-0 right-0 w-32 h-32 bg-wedding-gold/5 rounded-bl-full transition-transform duration-500 group-hover:scale-125" />
@@ -78,6 +80,19 @@ const Event = () => {
                                     <p className="font-bold text-lg mb-1">{event.location}</p>
                                     <p className="text-sm px-6 font-light">{event.address}</p>
                                 </div>
+                            </div>
+
+                            {/* Map Embed */}
+                            <div className="w-full h-48 md:h-64 rounded-xl overflow-hidden border border-wedding-gold/20 shadow-inner mb-6 relative z-10">
+                                <iframe
+                                    width="100%"
+                                    height="100%"
+                                    src={event.mapEmbedUrl}
+                                    style={{ border: 0 }}
+                                    allowFullScreen
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer-when-downgrade"
+                                ></iframe>
                             </div>
 
                             <motion.a

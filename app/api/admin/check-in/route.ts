@@ -6,12 +6,18 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { id } = body;
+        const { id, unique_code } = body;
 
-        // Cari tamu berdasarkan ID
-        const guests = await sql`
-            SELECT * FROM guests WHERE id = ${id}
-        `;
+        let guests;
+
+        if (id) {
+            guests = await sql`SELECT * FROM guests WHERE id = ${id}`;
+        } else if (unique_code) {
+            // Case insensitive search for unique code
+            guests = await sql`SELECT * FROM guests WHERE unique_code = ${unique_code.toUpperCase()}`;
+        } else {
+            return NextResponse.json({ error: 'Data tidak valid' }, { status: 400 });
+        }
 
         if (guests.length === 0) {
             return NextResponse.json({ error: 'Tamu tidak ditemukan' }, { status: 404 });
@@ -29,13 +35,15 @@ export async function POST(request: Request) {
         await sql`
             UPDATE guests 
             SET is_present = true, "checkInTime" = NOW() 
-            WHERE id = ${id}
+            WHERE id = ${guest.id}
         `;
 
         return NextResponse.json({
             success: true,
             message: `Berhasil! Selamat datang ${guest.name}.`,
-            guestName: guest.name
+            guestName: guest.name,
+            guestNames: guest.guest_names,
+            totalGuests: guest.total_guests
         });
     } catch (error) {
         console.error('Check-in API Error:', error);
